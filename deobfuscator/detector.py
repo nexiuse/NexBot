@@ -34,6 +34,17 @@ SIGNATURES = {
         "name": "Byte Table",
         "difficulty": "easy",
     },
+    "xor_function_calls": {
+        "patterns": [
+            r'local\s+\w+\s*=\s*string\.char\s*\n\s*local\s+\w+\s*=\s*string\.byte',
+            r'local\s+\w+\s*=\s*string\.byte\s*;?\s*local\s+\w+\s*=\s*string\.char',
+            r'bit(?:32)?\s+or\s+bit\b',
+            r'table\.concat\s*\(\s*\w+\s*\)\s*\n\s*end',
+            r'\w+\s*\(\s*"(?:\\[0-9]{1,3})+[^"]*"\s*,\s*"(?:\\[0-9]{1,3})+[^"]*"\s*\)',
+        ],
+        "name": "XOR Function Calls (Cyclic Key)",
+        "difficulty": "medium",
+    },
     "xor_cipher": {
         "patterns": [
             r'bit(?:32)?\.bxor\s*\(',
