@@ -97,29 +97,29 @@ class DeobfuscationEngine:
             unwrapped, methods = unwrap_layers(code)
             result.layers_unwrapped = methods
             
-            # Check if we actually deobfuscated anything
-            if unwrapped.strip() != code.strip() and len(methods) > 0:
-                result.deobfuscated_code = unwrapped
-                result.success = True
-            else:
-                # Even if no layers unwrapped, try beautifying
-                result.deobfuscated_code = code
-                result.success = False
+            # Initial assignment
+            result.deobfuscated_code = unwrapped
             
-            # Step 3: Beautify
+            # Step 3: VM Lifting (for hard obfuscators)
+            # We do this BEFORE beautification to get the cleanest logic reconstruction
+            if difficulty == "hard":
+                lifter = VMLifter()
+                lifted_code = lifter.process(unwrapped, key)
+                if lifted_code != unwrapped:
+                    result.deobfuscated_code = lifted_code
+                    result.success = True
+                    result.layers_unwrapped.append(f"Logic Restored: {key.upper()} instructions lifted")
+            
+            # Check if we actually deobfuscated anything beyond initial wrapping
+            if result.deobfuscated_code.strip() != code.strip() or len(result.layers_unwrapped) > 0:
+                result.success = True
+            
+            # Step 4: Beautify final result
             if beautify:
                 result.deobfuscated_code = beautify_lua(result.deobfuscated_code)
                 result.beautified = True
             
-            # Step 4: VM Lifting (for hard obfuscators)
-            if difficulty == "hard":
-                lifter = VMLifter()
-                lifted_code = lifter.process(result.deobfuscated_code, key)
-                if lifted_code != result.deobfuscated_code:
-                    result.deobfuscated_code = lifted_code
-                    result.layers_unwrapped.append(f"VM Lifting: {key.upper()} structure analyzed")
-            
-            # Extra: for hard obfuscators, extract readable strings
+            # Extra fallback for hard obfuscators if lifting returned nothing new
             if difficulty == "hard" and not result.success:
                 strings = self._extract_strings(code)
                 if strings:
