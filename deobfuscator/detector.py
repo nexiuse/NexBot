@@ -20,7 +20,7 @@ SIGNATURES = {
     "string_char": {
         "patterns": [
             r'string\.char\s*\(\s*\d+(?:\s*,\s*\d+){10,}\s*\)',
-            r'\\(\d{1,3})',
+            r'(?:\\\d{1,3}){20,}', # At least 20 escaped decimals in a row
             r'table\.concat\s*\(\s*\{[^}]*string\.char',
         ],
         "name": "String.char Encoding",
@@ -122,12 +122,18 @@ def detect_obfuscator(code: str) -> Tuple[str, str, str]:
     if not scores:
         return "unknown", "Unknown Obfuscator", "unknown"
     
-    # Sort by score, prioritize harder obfuscators on tie
-    difficulty_weight = {"hard": 3, "medium": 2, "easy": 1, "trivial": 0}
-    best = max(scores.keys(), key=lambda k: (
-        scores[k],
-        difficulty_weight.get(SIGNATURES[k]["difficulty"], 0)
-    ))
+    # Sort by score, but give a massive boost to "hard" signatures
+    # and a tie-breaker based on difficulty weight
+    difficulty_weight = {"hard": 10000, "medium": 100, "easy": 1, "trivial": 0}
+    
+    def calculate_rank(k):
+        base_score = scores[k]
+        # If it's a hard/medium obfuscator and we have at least one match,
+        # we give it a significant weight to avoid being drowned by easy patterns.
+        weight = difficulty_weight.get(SIGNATURES[k]["difficulty"], 0)
+        return (weight if base_score > 0 else 0) + base_score
+
+    best = max(scores.keys(), key=calculate_rank)
     
     sig = SIGNATURES[best]
     return best, sig["name"], sig["difficulty"]
