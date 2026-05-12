@@ -10,7 +10,7 @@ class ObfuscatorEngine:
         lua_template = f"""local b64 = "{b64_str}"
 local src = nil
 
--- 1. Native Decoder (Super Fast)
+-- 1. Native Decoder (Super Fast & Anti Crash)
 if type(crypt) == "table" and type(crypt.base64decode) == "function" then
     pcall(function() src = crypt.base64decode(b64) end)
 elseif type(crypt) == "table" and type(crypt.base64) == "table" and type(crypt.base64.decode) == "function" then
@@ -21,12 +21,12 @@ elseif type(base64) == "table" and type(base64.decode) == "function" then
     pcall(function() src = base64.decode(b64) end)
 end
 
--- 2. HttpGet Fallback (Might cause crash on Delta, but works on PC)
+-- 2. HttpGet Fallback (Safe check)
 if not src and game and game.HttpGet then
     pcall(function() src = game:HttpGet("data:text/plain;base64," .. b64) end)
 end
 
--- 3. Lua Fallback (Very Slow)
+-- 3. Lua Fallback (With task.wait() to prevent Watchdog Timeout / Hangs)
 if not src then
     local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     local lookup = {{}}
@@ -46,13 +46,14 @@ if not src then
                 val = val % (2 ^ bits)
             end
         end
+        if i % 10000 == 0 then task.wait() end -- Prevent freezing on mobile
     end
     src = table.concat(out)
 end
 
 local func, err = loadstring(src)
 if func then
-    func()
+    task.defer(func) -- Run asynchronously to prevent C Stack Overflow
 else
     warn("Obfuscation error: " .. tostring(err))
 end
