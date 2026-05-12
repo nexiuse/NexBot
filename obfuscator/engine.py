@@ -8,14 +8,26 @@ class ObfuscatorEngine:
         b64_str = base64.b64encode(code_bytes).decode("utf-8")
         
         lua_template = f"""local b64 = "{b64_str}"
-local decoded = nil
-if game and game.HttpGet then
-    local ok, result = pcall(function()
-        return game:HttpGet("data:text/plain;base64," .. b64)
-    end)
-    if ok then decoded = result end
+local src = nil
+
+-- 1. Native Decoder (Super Fast)
+if type(crypt) == "table" and type(crypt.base64decode) == "function" then
+    pcall(function() src = crypt.base64decode(b64) end)
+elseif type(crypt) == "table" and type(crypt.base64) == "table" and type(crypt.base64.decode) == "function" then
+    pcall(function() src = crypt.base64.decode(b64) end)
+elseif type(base64_decode) == "function" then
+    pcall(function() src = base64_decode(b64) end)
+elseif type(base64) == "table" and type(base64.decode) == "function" then
+    pcall(function() src = base64.decode(b64) end)
 end
-if not decoded then
+
+-- 2. HttpGet Fallback (Might cause crash on Delta, but works on PC)
+if not src and game and game.HttpGet then
+    pcall(function() src = game:HttpGet("data:text/plain;base64," .. b64) end)
+end
+
+-- 3. Lua Fallback (Very Slow)
+if not src then
     local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     local lookup = {{}}
     for i = 1, #alphabet do lookup[alphabet:sub(i,i)] = i - 1 end
@@ -35,9 +47,16 @@ if not decoded then
             end
         end
     end
-    decoded = table.concat(out)
+    src = table.concat(out)
 end
-loadstring(decoded)()"""
+
+local func, err = loadstring(src)
+if func then
+    func()
+else
+    warn("Obfuscation error: " .. tostring(err))
+end
+"""
         return lua_template
 
     def obfuscate_xor(self, code: str) -> str:
